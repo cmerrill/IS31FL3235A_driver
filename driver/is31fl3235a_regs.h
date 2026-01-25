@@ -23,6 +23,7 @@
 #define IS31FL3235A_REG_CTRL_BASE       0x2A  /* LED control registers base */
 #define IS31FL3235A_REG_CTRL_OUT1       0x2A  /* LED control for OUT1 */
 #define IS31FL3235A_REG_CTRL_OUT28      0x45  /* LED control for OUT28 */
+#define IS31FL3235A_REG_GLOBAL_CTRL     0x4A  /* Global control register */
 #define IS31FL3235A_REG_FREQ            0x4B  /* PWM frequency select */
 #define IS31FL3235A_REG_RESET           0x4F  /* Reset register */
 
@@ -66,6 +67,11 @@
 					 IS31FL3235A_CTRL_SL_THIRD)
 #define IS31FL3235A_CTRL_ENABLE_QUARTER (IS31FL3235A_CTRL_OUT_ENABLE | \
 					 IS31FL3235A_CTRL_SL_QUARTER)
+
+/* Global Control Register (0x4A) */
+#define IS31FL3235A_GLOBAL_CTRL_G_EN    BIT(0)  /* Global LED enable */
+#define IS31FL3235A_GLOBAL_CTRL_NORMAL  0x00    /* Normal operation (LEDs enabled) */
+#define IS31FL3235A_GLOBAL_CTRL_SHUTDOWN 0x01   /* Shutdown all LEDs */
 
 /* Output Frequency Register (0x4B) */
 #define IS31FL3235A_FREQ_OFS_BIT        BIT(0)  /* Output frequency select */

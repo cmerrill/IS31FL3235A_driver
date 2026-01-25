@@ -107,6 +107,30 @@ int is31fl3235a_channels_enable(const struct device *dev,
 				 const bool *enable);
 
 /**
+ * @brief Enable or disable multiple consecutive channels without triggering update
+ *
+ * This is the extended API version of is31fl3235a_channels_enable() that
+ * writes to the staging registers without triggering an update.
+ * Call is31fl3235a_update() to apply the changes.
+ *
+ * Use this for batching channel enable/disable changes with brightness
+ * changes and applying them all simultaneously with a single update.
+ *
+ * @param dev Pointer to the device structure
+ * @param start_channel First channel number (0-27)
+ * @param num_channels Number of consecutive channels to configure
+ * @param enable Array of enable states (true to enable, false to disable)
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Invalid channel range
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_channels_enable_no_update(const struct device *dev,
+					   uint8_t start_channel,
+					   uint8_t num_channels,
+					   const bool *enable);
+
+/**
  * @brief Software shutdown control
  *
  * In software shutdown mode, all LED outputs are turned off but
@@ -141,6 +165,28 @@ int is31fl3235a_sw_shutdown(const struct device *dev, bool shutdown);
  * @retval -EIO GPIO control error
  */
 int is31fl3235a_hw_shutdown(const struct device *dev, bool shutdown);
+
+/**
+ * @brief Global LED enable/disable via Global Control Register
+ *
+ * Uses the Global Control Register (0x4A) to enable or disable all
+ * LED outputs simultaneously without affecting individual channel
+ * settings or PWM values.
+ *
+ * This is different from software shutdown:
+ * - Global disable: Only LED outputs are disabled, chip is fully operational
+ * - Software shutdown: Chip enters low-power mode
+ *
+ * Use this for quickly blanking all LEDs while preserving state,
+ * such as during display transitions or error conditions.
+ *
+ * @param dev Pointer to the device structure
+ * @param enable true for normal operation, false to disable all LED outputs
+ *
+ * @retval 0 On success
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_global_enable(const struct device *dev, bool enable);
 
 /**
  * @brief Manually trigger update of buffered register values

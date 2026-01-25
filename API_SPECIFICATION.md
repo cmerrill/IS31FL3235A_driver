@@ -277,6 +277,48 @@ bool all_disabled[28] = {false};  /* All false */
 is31fl3235a_channels_enable(led_dev, 0, 28, all_disabled);
 ```
 
+#### is31fl3235a_channels_enable_no_update()
+
+Enable or disable multiple consecutive channels without triggering update.
+
+```c
+int is31fl3235a_channels_enable_no_update(const struct device *dev,
+                                           uint8_t start_channel,
+                                           uint8_t num_channels,
+                                           const bool *enable);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `start_channel`: First channel number (0-27)
+- `num_channels`: Number of consecutive channels to configure
+- `enable`: Array of enable states (`true` to enable, `false` to disable)
+
+**Returns:**
+- `0`: Success
+- `-EINVAL`: Invalid channel range
+- `-EIO`: I2C communication error
+
+**Notes:**
+- Does NOT trigger update - changes remain staged until `is31fl3235a_update()` is called
+- Allows batching enable/disable changes with brightness changes
+- Preserves current scaling settings for each channel
+- Thread-safe
+
+**Example:**
+```c
+/* Batch brightness and enable changes together */
+uint8_t rgb[3] = {255, 128, 64};
+bool enable[3] = {true, true, false};
+
+/* Write both without triggering update */
+is31fl3235a_write_channels_no_update(led_dev, 0, 3, rgb);
+is31fl3235a_channels_enable_no_update(led_dev, 0, 3, enable);
+
+/* Apply all changes atomically */
+is31fl3235a_update(led_dev);
+```
+
 ### Power Management
 
 #### is31fl3235a_sw_shutdown()
@@ -345,6 +387,51 @@ if (ret == -ENOTSUP) {
 /* Wake from hardware shutdown */
 is31fl3235a_hw_shutdown(led_dev, false);
 ```
+
+#### is31fl3235a_global_enable()
+
+Global LED enable/disable via Global Control Register.
+
+```c
+int is31fl3235a_global_enable(const struct device *dev, bool enable);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `enable`: `true` for normal operation, `false` to disable all LED outputs
+
+**Returns:**
+- `0`: Success
+- `-EIO`: I2C communication error
+
+**Notes:**
+- Uses the Global Control Register (0x4A) to enable/disable all outputs
+- Different from software shutdown:
+  - Global disable: Only LED outputs disabled, chip fully operational
+  - Software shutdown: Chip enters low-power mode
+- Does not affect individual channel settings or PWM values
+- Instant on/off without reconfiguration
+- Useful for blanking displays during transitions or error conditions
+
+**Example:**
+```c
+/* Blank all LEDs during display transition */
+is31fl3235a_global_enable(led_dev, false);
+
+/* Update multiple channel groups */
+led_write_channels(led_dev, 0, 10, new_pattern_a);
+led_write_channels(led_dev, 15, 8, new_pattern_b);
+
+/* Reveal new pattern all at once */
+is31fl3235a_global_enable(led_dev, true);
+```
+
+**Comparison of Power Control Options:**
+| Method | Power | Registers | Recovery | Use Case |
+|--------|-------|-----------|----------|----------|
+| `global_enable(false)` | Normal | Preserved | Instant | Display blanking |
+| `sw_shutdown(true)` | Low | Preserved | Fast | Power saving |
+| `hw_shutdown(true)` | Lowest | Preserved | ~1ms | Deep sleep |
 
 ### Manual Update Control
 
@@ -741,11 +828,21 @@ Updating faster than PWM period provides no visual benefit.
 - `led_write_channels()` - Set multiple channels
 
 ### Extended API (IS31FL3235A-specific)
-- `is31fl3235a_set_current_scale()` - Adjust current scaling
-- `is31fl3235a_channel_enable()` - Enable/disable channel
+
+**Current Scaling:**
+- `is31fl3235a_set_current_scale()` - Adjust current scaling per channel
+
+**Channel Enable/Disable:**
+- `is31fl3235a_channel_enable()` - Enable/disable single channel
 - `is31fl3235a_channels_enable()` - Enable/disable multiple channels at once
-- `is31fl3235a_sw_shutdown()` - Software power control
-- `is31fl3235a_hw_shutdown()` - Hardware power control (requires SDB pin)
+- `is31fl3235a_channels_enable_no_update()` - Enable/disable multiple channels without auto-update
+
+**Power Management:**
+- `is31fl3235a_global_enable()` - Global LED output enable/disable (instant blanking)
+- `is31fl3235a_sw_shutdown()` - Software power control (low power)
+- `is31fl3235a_hw_shutdown()` - Hardware power control (lowest power, requires SDB pin)
+
+**Manual Update Control:**
 - `is31fl3235a_update()` - Manual update trigger
 - `is31fl3235a_set_brightness_no_update()` - Set brightness without auto-update
 - `is31fl3235a_write_channels_no_update()` - Write channels without auto-update
@@ -755,8 +852,9 @@ Updating faster than PWM period provides no visual benefit.
 2. Use extended API for IS31FL3235A-specific features
 3. Prefer `led_write_channels()` for multi-channel updates
 4. Use `*_no_update()` functions for frame-perfect animations or batching non-consecutive updates
-5. Check `device_is_ready()` before use
-6. Handle error codes appropriately
-7. Configure I2C to 400kHz for performance
-8. Use current scaling to balance LED brightness
-9. Use shutdown for power savings
+5. Use `is31fl3235a_global_enable()` for instant display blanking during transitions
+6. Check `device_is_ready()` before use
+7. Handle error codes appropriately
+8. Configure I2C to 400kHz for performance
+9. Use current scaling to balance LED brightness
+10. Use shutdown for power savings
