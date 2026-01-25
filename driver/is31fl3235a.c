@@ -383,6 +383,69 @@ unlock:
 }
 
 /**
+ * @brief Enable or disable multiple consecutive channels (extended API)
+ */
+int is31fl3235a_channels_enable(const struct device *dev,
+				 uint8_t start_channel,
+				 uint8_t num_channels,
+				 const bool *enable)
+{
+	struct is31fl3235a_data *data = dev->data;
+	uint8_t ctrl_buf[IS31FL3235A_NUM_CHANNELS];
+	int ret;
+
+	if (start_channel >= IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Invalid start channel %u", start_channel);
+		return -EINVAL;
+	}
+
+	if (start_channel + num_channels > IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Channel range %u-%u exceeds maximum %u",
+			start_channel, start_channel + num_channels - 1,
+			IS31FL3235A_NUM_CHANNELS - 1);
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	/* Build control register buffer, preserving current scale settings */
+	for (uint8_t i = 0; i < num_channels; i++) {
+		uint8_t ctrl_val = data->ctrl_cache[start_channel + i];
+
+		if (enable[i]) {
+			ctrl_val |= IS31FL3235A_CTRL_OUT_ENABLE;
+		} else {
+			ctrl_val &= ~IS31FL3235A_CTRL_OUT_ENABLE;
+		}
+
+		ctrl_buf[i] = ctrl_val;
+	}
+
+	/* Write control values to consecutive registers */
+	ret = is31fl3235a_write_buffer(dev, IS31FL3235A_CTRL_REG(start_channel),
+					ctrl_buf, num_channels);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	/* Update cache */
+	memcpy(&data->ctrl_cache[start_channel], ctrl_buf, num_channels);
+
+	/* Trigger update to apply all changes simultaneously */
+	ret = is31fl3235a_trigger_update(dev);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	LOG_DBG("Set channels %u-%u enable states (%u channels)",
+		start_channel, start_channel + num_channels - 1, num_channels);
+
+unlock:
+	k_mutex_unlock(&data->lock);
+	return ret;
+}
+
+/**
  * @brief Software shutdown control (extended API)
  */
 int is31fl3235a_sw_shutdown(const struct device *dev, bool shutdown)
@@ -461,6 +524,94 @@ int is31fl3235a_update(const struct device *dev)
 	ret = is31fl3235a_trigger_update(dev);
 	k_mutex_unlock(&data->lock);
 
+	return ret;
+}
+
+/**
+ * @brief Set brightness for a single LED channel without triggering update (extended API)
+ *
+ * @param dev Pointer to device structure
+ * @param led Channel number (0-27)
+ * @param value Brightness value (0-255)
+ * @return 0 on success, negative errno on error
+ */
+int is31fl3235a_set_brightness_no_update(const struct device *dev,
+					  uint32_t led,
+					  uint8_t value)
+{
+	struct is31fl3235a_data *data = dev->data;
+	int ret;
+
+	if (led >= IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Invalid channel %u (max %u)", led,
+			IS31FL3235A_NUM_CHANNELS - 1);
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	/* Write PWM value to register */
+	ret = is31fl3235a_write_reg(dev, IS31FL3235A_PWM_REG(led), value);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	/* Update cache */
+	data->pwm_cache[led] = value;
+
+	LOG_DBG("Set channel %u brightness to %u (no update)", led, value);
+
+unlock:
+	k_mutex_unlock(&data->lock);
+	return ret;
+}
+
+/**
+ * @brief Write brightness values to multiple consecutive channels without triggering update (extended API)
+ *
+ * @param dev Pointer to device structure
+ * @param start_channel First channel number
+ * @param num_channels Number of consecutive channels
+ * @param buf Buffer containing brightness values
+ * @return 0 on success, negative errno on error
+ */
+int is31fl3235a_write_channels_no_update(const struct device *dev,
+					  uint32_t start_channel,
+					  uint32_t num_channels,
+					  const uint8_t *buf)
+{
+	struct is31fl3235a_data *data = dev->data;
+	int ret;
+
+	if (start_channel >= IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Invalid start channel %u", start_channel);
+		return -EINVAL;
+	}
+
+	if (start_channel + num_channels > IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Channel range %u-%u exceeds maximum %u",
+			start_channel, start_channel + num_channels - 1,
+			IS31FL3235A_NUM_CHANNELS - 1);
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	/* Write PWM values to consecutive registers */
+	ret = is31fl3235a_write_buffer(dev, IS31FL3235A_PWM_REG(start_channel),
+					buf, num_channels);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	/* Update cache */
+	memcpy(&data->pwm_cache[start_channel], buf, num_channels);
+
+	LOG_DBG("Set channels %u-%u (%u channels, no update)",
+		start_channel, start_channel + num_channels - 1, num_channels);
+
+unlock:
+	k_mutex_unlock(&data->lock);
 	return ret;
 }
 

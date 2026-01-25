@@ -238,6 +238,45 @@ is31fl3235a_channel_enable(led_dev, 5, false);
 is31fl3235a_channel_enable(led_dev, 5, true);
 ```
 
+#### is31fl3235a_channels_enable()
+
+Enable or disable multiple consecutive channels at once.
+
+```c
+int is31fl3235a_channels_enable(const struct device *dev,
+                                 uint8_t start_channel,
+                                 uint8_t num_channels,
+                                 const bool *enable);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `start_channel`: First channel number (0-27)
+- `num_channels`: Number of consecutive channels to configure
+- `enable`: Array of enable states (`true` to enable, `false` to disable)
+
+**Returns:**
+- `0`: Success
+- `-EINVAL`: Invalid channel range
+- `-EIO`: I2C communication error
+
+**Notes:**
+- More efficient than multiple `is31fl3235a_channel_enable()` calls
+- All channels update simultaneously (single update trigger)
+- Preserves current scaling settings for each channel
+- Thread-safe
+
+**Example:**
+```c
+/* Enable first 3 channels (RGB LED), disable next 2 */
+bool enable_states[5] = {true, true, true, false, false};
+is31fl3235a_channels_enable(led_dev, 0, 5, enable_states);
+
+/* Disable all 28 channels at once */
+bool all_disabled[28] = {false};  /* All false */
+is31fl3235a_channels_enable(led_dev, 0, 28, all_disabled);
+```
+
 ### Power Management
 
 #### is31fl3235a_sw_shutdown()
@@ -330,13 +369,87 @@ int is31fl3235a_update(const struct device *dev);
 - Use when you need fine control over update timing
 - Applies all pending PWM and control register changes
 
-**Example:**
-```c
-/* Advanced: batch updates without triggering */
-/* (This would require internal API access - not normally exposed) */
+### Extended Brightness Control (No Auto-Update)
 
-/* Normally, just use standard API which handles updates automatically */
-led_set_brightness(led_dev, 0, 100);  /* Auto-updates */
+These functions are extended API versions of the standard brightness functions that write to staging registers without triggering an update. Use them to batch multiple changes and apply them all simultaneously with a single `is31fl3235a_update()` call.
+
+#### is31fl3235a_set_brightness_no_update()
+
+Set brightness for a single channel without triggering update.
+
+```c
+int is31fl3235a_set_brightness_no_update(const struct device *dev,
+                                          uint32_t led,
+                                          uint8_t value);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `led`: LED channel number (0-27)
+- `value`: Brightness value (0-255)
+
+**Returns:**
+- `0`: Success
+- `-EINVAL`: Invalid channel number
+- `-EIO`: I2C communication error
+
+**Notes:**
+- Does NOT trigger update - changes remain staged until `is31fl3235a_update()` is called
+- Use for batching non-consecutive channel updates
+- Thread-safe
+
+#### is31fl3235a_write_channels_no_update()
+
+Write brightness values to multiple consecutive channels without triggering update.
+
+```c
+int is31fl3235a_write_channels_no_update(const struct device *dev,
+                                          uint32_t start_channel,
+                                          uint32_t num_channels,
+                                          const uint8_t *buf);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `start_channel`: First channel number (0-27)
+- `num_channels`: Number of consecutive channels to write
+- `buf`: Array of brightness values (0-255)
+
+**Returns:**
+- `0`: Success
+- `-EINVAL`: Invalid channel range
+- `-EIO`: I2C communication error
+
+**Notes:**
+- Does NOT trigger update - changes remain staged until `is31fl3235a_update()` is called
+- Efficient I2C transaction (single write for all consecutive channels)
+- Use for batching multiple channel groups
+- Thread-safe
+
+**Example: Batching Multiple Updates**
+```c
+/* Update two separate RGB LED groups simultaneously */
+uint8_t rgb1[3] = {255, 0, 0};    /* Red for LED group 1 (channels 0-2) */
+uint8_t rgb2[3] = {0, 0, 255};    /* Blue for LED group 2 (channels 10-12) */
+
+/* Write to staging registers without triggering update */
+is31fl3235a_write_channels_no_update(led_dev, 0, 3, rgb1);
+is31fl3235a_write_channels_no_update(led_dev, 10, 3, rgb2);
+
+/* Now trigger single update - both groups change simultaneously */
+is31fl3235a_update(led_dev);
+```
+
+**Example: Frame-Perfect Animation**
+```c
+/* Prepare next animation frame without visual artifacts */
+for (int ch = 0; ch < 28; ch++) {
+    uint8_t brightness = calculate_frame_brightness(ch, frame);
+    is31fl3235a_set_brightness_no_update(led_dev, ch, brightness);
+}
+
+/* Apply entire frame at once */
+is31fl3235a_update(led_dev);
 ```
 
 ## Complete Usage Examples
@@ -630,16 +743,20 @@ Updating faster than PWM period provides no visual benefit.
 ### Extended API (IS31FL3235A-specific)
 - `is31fl3235a_set_current_scale()` - Adjust current scaling
 - `is31fl3235a_channel_enable()` - Enable/disable channel
+- `is31fl3235a_channels_enable()` - Enable/disable multiple channels at once
 - `is31fl3235a_sw_shutdown()` - Software power control
 - `is31fl3235a_hw_shutdown()` - Hardware power control (requires SDB pin)
-- `is31fl3235a_update()` - Manual update (advanced)
+- `is31fl3235a_update()` - Manual update trigger
+- `is31fl3235a_set_brightness_no_update()` - Set brightness without auto-update
+- `is31fl3235a_write_channels_no_update()` - Write channels without auto-update
 
 ### Best Practices
 1. Use standard LED API when possible for portability
 2. Use extended API for IS31FL3235A-specific features
 3. Prefer `led_write_channels()` for multi-channel updates
-4. Check `device_is_ready()` before use
-5. Handle error codes appropriately
-6. Configure I2C to 400kHz for performance
-7. Use current scaling to balance LED brightness
-8. Use shutdown for power savings
+4. Use `*_no_update()` functions for frame-perfect animations or batching non-consecutive updates
+5. Check `device_is_ready()` before use
+6. Handle error codes appropriately
+7. Configure I2C to 400kHz for performance
+8. Use current scaling to balance LED brightness
+9. Use shutdown for power savings

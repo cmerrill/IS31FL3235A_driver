@@ -85,6 +85,28 @@ int is31fl3235a_channel_enable(const struct device *dev,
 				bool enable);
 
 /**
+ * @brief Enable or disable multiple consecutive channels
+ *
+ * Sets the enable state for multiple consecutive channels in a single
+ * operation. This is more efficient than multiple calls to
+ * is31fl3235a_channel_enable() when configuring several channels.
+ * Current scaling settings for each channel are preserved.
+ *
+ * @param dev Pointer to the device structure
+ * @param start_channel First channel number (0-27)
+ * @param num_channels Number of consecutive channels to configure
+ * @param enable Array of enable states (true to enable, false to disable)
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Invalid channel range
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_channels_enable(const struct device *dev,
+				 uint8_t start_channel,
+				 uint8_t num_channels,
+				 const bool *enable);
+
+/**
  * @brief Software shutdown control
  *
  * In software shutdown mode, all LED outputs are turned off but
@@ -140,6 +162,52 @@ int is31fl3235a_hw_shutdown(const struct device *dev, bool shutdown);
  * @retval -EIO I2C communication error
  */
 int is31fl3235a_update(const struct device *dev);
+
+/**
+ * @brief Set brightness for a single LED channel without triggering update
+ *
+ * This is the extended API version of led_set_brightness() that writes
+ * the PWM value to the staging register without triggering an update.
+ * Call is31fl3235a_update() to apply the changes.
+ *
+ * Use this for batching multiple brightness changes and applying them
+ * simultaneously with a single update, avoiding intermediate visible states.
+ *
+ * @param dev Pointer to the device structure
+ * @param led Channel number (0-27)
+ * @param value Brightness value (0-255)
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Invalid channel number
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_set_brightness_no_update(const struct device *dev,
+					  uint32_t led,
+					  uint8_t value);
+
+/**
+ * @brief Write brightness values to multiple channels without triggering update
+ *
+ * This is the extended API version of led_write_channels() that writes
+ * PWM values to the staging registers without triggering an update.
+ * Call is31fl3235a_update() to apply the changes.
+ *
+ * Use this for batching changes across multiple non-consecutive channel
+ * groups and applying them all simultaneously with a single update.
+ *
+ * @param dev Pointer to the device structure
+ * @param start_channel First channel number (0-27)
+ * @param num_channels Number of consecutive channels to write
+ * @param buf Array of brightness values (0-255)
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Invalid channel range
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_write_channels_no_update(const struct device *dev,
+					  uint32_t start_channel,
+					  uint32_t num_channels,
+					  const uint8_t *buf);
 
 #ifdef __cplusplus
 }
