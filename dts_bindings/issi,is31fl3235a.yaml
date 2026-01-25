@@ -1,0 +1,149 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ISSI/Lumissil IS31FL3235A 28-channel LED driver with I2C interface.
+
+  The IS31FL3235A is a constant current LED driver with 28 independent
+  channels. Each channel supports:
+  - 8-bit PWM brightness control (0-255)
+  - Per-channel current scaling (1x, 1/2x, 1/3x, 1/4x)
+  - Up to 38mA output current (set by external resistor)
+  - Enable/disable control
+
+  The device supports both hardware shutdown (via SDB pin) and software
+  shutdown (via I2C register). PWM frequency is selectable between 3kHz
+  and 22kHz.
+
+  Example usage:
+
+    &i2c0 {
+        led_controller: is31fl3235a@3c {
+            compatible = "issi,is31fl3235a";
+            reg = <0x3c>;
+            sdb-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+            pwm-frequency = <22000>;
+
+            led_0 {
+                reg = <0>;
+                label = "Red LED";
+                color = <LED_COLOR_ID_RED>;
+            };
+
+            led_1 {
+                reg = <1>;
+                label = "Green LED";
+                color = <LED_COLOR_ID_GREEN>;
+            };
+
+            /* ... up to 28 channels ... */
+        };
+    };
+
+compatible: "issi,is31fl3235a"
+
+include: [i2c-device.yaml, base.yaml]
+
+properties:
+  sdb-gpios:
+    type: phandle-array
+    description: |
+      Optional shutdown (SDB) GPIO pin specification.
+
+      When this pin is driven low, the chip enters hardware shutdown mode
+      (lowest power consumption). When driven high, the chip operates normally.
+
+      If specified, the driver will configure this pin as an output and
+      set it high during initialization to enable the chip.
+
+      If not specified, only software shutdown (via I2C) is available.
+
+      The GPIO should be configured as active-high.
+
+  pwm-frequency:
+    type: int
+    default: 3000
+    enum:
+      - 3000
+      - 22000
+    description: |
+      PWM frequency in Hz for all LED channels.
+
+      Valid values:
+        - 3000: 3kHz PWM frequency (default, lower EMI)
+        - 22000: 22kHz PWM frequency (reduced flicker, faster response)
+
+      The frequency applies to all 28 channels and is configured at
+      initialization time. It cannot be changed at runtime.
+
+      Choose 3kHz for lower electromagnetic interference and general purpose
+      applications. Choose 22kHz for applications requiring reduced visible
+      flicker or faster LED response times (e.g., high-speed scanning).
+
+child-binding:
+  description: |
+    LED channel configuration.
+
+    Each child node represents one of the 28 LED output channels.
+    Channels are numbered 0-27, corresponding to hardware channels
+    CH1-CH28 in the datasheet.
+
+    Child nodes are optional. If not specified, all channels are still
+    accessible via the LED driver API using channel numbers 0-27.
+
+    The main purpose of child nodes is to assign human-readable labels
+    and color information for use with Zephyr's LED abstraction layer.
+
+  properties:
+    reg:
+      type: int
+      required: true
+      description: |
+        LED channel number (0-27).
+
+        Channel mapping to hardware:
+          reg = 0  -> Hardware CH1  (PWM register 0x05, Control register 0x2A)
+          reg = 1  -> Hardware CH2  (PWM register 0x06, Control register 0x2B)
+          ...
+          reg = 27 -> Hardware CH28 (PWM register 0x20, Control register 0x45)
+
+        Valid range: 0-27
+
+    label:
+      type: string
+      description: |
+        Human-readable label for this LED channel.
+
+        This label can be used with Zephyr's LED shell commands and APIs
+        to reference the LED by name instead of channel number.
+
+        Examples: "Red LED", "Status Indicator", "Backlight Zone 1"
+
+    color:
+      type: int
+      description: |
+        LED color identifier.
+
+        Use LED_COLOR_ID_* constants from dt-bindings/led/led.h:
+          - LED_COLOR_ID_WHITE
+          - LED_COLOR_ID_RED
+          - LED_COLOR_ID_GREEN
+          - LED_COLOR_ID_BLUE
+          - LED_COLOR_ID_AMBER
+          - LED_COLOR_ID_VIOLET
+          - LED_COLOR_ID_YELLOW
+          - LED_COLOR_ID_IR
+          - LED_COLOR_ID_RGB (for multi-color)
+
+        This property is informational and used by LED framework for
+        color-based LED selection and control.
+
+    function:
+      type: int
+      description: |
+        LED function identifier.
+
+        Use LED_FUNCTION_* constants from dt-bindings/led/led.h.
+
+        This property is informational and used by LED framework for
+        function-based LED selection and control.

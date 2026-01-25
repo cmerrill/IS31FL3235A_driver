@@ -1,0 +1,51 @@
+/*
+ * Copyright (c) 2026
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Device tree overlay for IS31FL3235A sample application
+ *
+ * This overlay file should be customized for your hardware:
+ * 1. Update &i2c0 to match your board's I2C bus
+ * 2. Update the I2C address (reg property) to match your AD pin configuration
+ * 3. Update sdb-gpios to match your GPIO pin connection (or remove if not used)
+ * 4. Adjust pwm-frequency as needed (3000 or 22000)
+ */
+
+#include <dt-bindings/led/led.h>
+
+/* Enable and configure I2C bus */
+&i2c0 {
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;  /* 400kHz recommended */
+
+	/* IS31FL3235A LED controller */
+	led_controller: is31fl3235a@3c {
+		compatible = "issi,is31fl3235a";
+		reg = <0x3c>;  /* I2C address (AD pin = GND) */
+		sdb-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;  /* Optional SDB pin */
+		pwm-frequency = <22000>;  /* 22kHz for reduced flicker */
+
+		/* Define RGB LED channels (channels 0-2) */
+		led_red {
+			reg = <0>;
+			label = "RGB Red";
+			color = <LED_COLOR_ID_RED>;
+		};
+
+		led_green {
+			reg = <1>;
+			label = "RGB Green";
+			color = <LED_COLOR_ID_GREEN>;
+		};
+
+		led_blue {
+			reg = <2>;
+			label = "RGB Blue";
+			color = <LED_COLOR_ID_BLUE>;
+		};
+
+		/* Additional channels can be defined here (channels 3-27) */
+	};
+};

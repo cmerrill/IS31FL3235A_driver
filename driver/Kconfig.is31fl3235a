@@ -1,0 +1,21 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config LED_IS31FL3235A
+	bool "IS31FL3235A LED driver"
+	default y
+	depends on DT_HAS_ISSI_IS31FL3235A_ENABLED
+	select I2C
+	help
+	  Enable driver for IS31FL3235A LED controller.
+
+	  The IS31FL3235A is a 28-channel constant current LED driver
+	  from Lumissil Microsystems (ISSI) with I2C interface.
+
+	  Features:
+	  - 28 independent LED channels
+	  - 8-bit PWM brightness control per channel
+	  - Per-channel current scaling (1x, 1/2x, 1/3x, 1/4x)
+	  - Selectable PWM frequency (3kHz or 22kHz)
+	  - Hardware and software shutdown modes
+	  - Up to 38mA per channel (set by external resistor)
