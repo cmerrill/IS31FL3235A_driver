@@ -115,28 +115,6 @@ static int is31fl3235a_write_buffer(const struct device *dev,
 }
 
 /**
- * @brief Read a single byte from a register
- *
- * @param dev Pointer to device structure
- * @param reg Register address
- * @param value Pointer to store read value
- * @return 0 on success, negative errno on error
- */
-static int is31fl3235a_read_reg(const struct device *dev, uint8_t reg, uint8_t *value)
-{
-	const struct is31fl3235a_cfg *cfg = dev->config;
-	int ret;
-
-	ret = i2c_write_read_dt(&cfg->i2c, &reg, 1, value, 1);
-	if (ret < 0) {
-		LOG_ERR("Failed to read register 0x%02x: %d", reg, ret);
-		return ret;
-	}
-
-	return 0;
-}
-
-/**
  * @brief Trigger update of buffered PWM and control register values
  *
  * @param dev Pointer to device structure

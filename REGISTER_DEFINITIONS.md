@@ -2,18 +2,20 @@
 
 ## Register Map
 
-| Address | Name | R/W | Default | Description |
-|---------|------|-----|---------|-------------|
-| 0x00 | Shutdown | R/W | 0x00 | Software shutdown control |
+**Note:** The IS31FL3235A does not support reading registers. All registers are write-only.
+
+| Address | Name | Access | Default | Description |
+|---------|------|--------|---------|-------------|
+| 0x00 | Shutdown | W | 0x00 | Software shutdown control |
 | 0x01-0x04 | Reserved | - | - | Do not use |
 | 0x05-0x20 | PWM (OUT1-OUT28) | W | 0x00 | Per-channel PWM duty cycle |
 | 0x21-0x24 | Reserved | - | - | Do not use |
 | 0x25 | Update | W | - | Write to apply buffered changes |
 | 0x26-0x29 | Reserved | - | - | Do not use |
-| 0x2A-0x45 | LED Control (OUT1-OUT28) | R/W | 0x00 | Per-channel enable + current scale |
+| 0x2A-0x45 | LED Control (OUT1-OUT28) | W | 0x00 | Per-channel enable + current scale |
 | 0x46-0x49 | Reserved | - | - | Do not use |
-| 0x4A | Global Control | R/W | 0x00 | Global LED enable |
-| 0x4B | Frequency | R/W | 0x00 | PWM frequency selection |
+| 0x4A | Global Control | W | 0x00 | Global LED enable |
+| 0x4B | Frequency | W | 0x00 | PWM frequency selection |
 | 0x4C-0x4E | Reserved | - | - | Do not use |
 | 0x4F | Reset | W | - | Software reset |
 

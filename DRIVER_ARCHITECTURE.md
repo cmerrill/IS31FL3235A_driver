@@ -50,9 +50,9 @@ struct is31fl3235a_data {
 ```
 
 **Caching Benefits:**
-- Enables read-modify-write of control registers without I2C reads
+- Enables read-modify-write of control registers (device does not support reading)
 - Supports synchronized multi-channel updates
-- Reduces I2C bus traffic
+- Tracks register state in software
 
 ## Register Access
 
@@ -115,9 +115,6 @@ static int is31fl3235a_write_reg(const struct device *dev,
 
 static int is31fl3235a_write_buffer(const struct device *dev,
                                      uint8_t reg, const uint8_t *buf, size_t len);
-
-static int is31fl3235a_read_reg(const struct device *dev,
-                                 uint8_t reg, uint8_t *value);
 
 static inline int is31fl3235a_trigger_update(const struct device *dev);
 ```
