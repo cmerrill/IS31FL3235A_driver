@@ -57,43 +57,43 @@ void main(void)
 
 	k_msleep(1000);
 
-	/* Test 2: Multi-channel synchronized update using extended API (0-255 range) */
+	/* Test 2: Multi-channel synchronized update using standard LED API (0-100 range) */
 	LOG_INF("Test 2: Synchronized multi-channel update (RGB)");
 	uint8_t rgb_values[3];
 
-	/* Red - using extended API for full 8-bit color control */
-	rgb_values[0] = 255;
+	/* Red - using standard API with 0-100 percentage */
+	rgb_values[0] = 100;
 	rgb_values[1] = 0;
 	rgb_values[2] = 0;
-	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
+	led_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* Green */
 	rgb_values[0] = 0;
-	rgb_values[1] = 255;
+	rgb_values[1] = 100;
 	rgb_values[2] = 0;
-	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
+	led_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* Blue */
 	rgb_values[0] = 0;
 	rgb_values[1] = 0;
-	rgb_values[2] = 255;
-	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
+	rgb_values[2] = 100;
+	led_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* White */
-	rgb_values[0] = 255;
-	rgb_values[1] = 255;
-	rgb_values[2] = 255;
-	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
+	rgb_values[0] = 100;
+	rgb_values[1] = 100;
+	rgb_values[2] = 100;
+	led_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* Off */
 	rgb_values[0] = 0;
 	rgb_values[1] = 0;
 	rgb_values[2] = 0;
-	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
+	led_write_channels(led_dev, 0, 3, rgb_values);
 
 	k_msleep(1000);
 
