@@ -195,11 +195,11 @@ Basic Brightness Control
 
    const struct device *led = DEVICE_DT_GET(DT_NODELABEL(led_controller));
 
-   /* Set channel 0 to 50% brightness */
-   led_set_brightness(led, 0, 128);
+   /* Set channel 0 to 50% brightness (standard API uses 0-100 percentage) */
+   led_set_brightness(led, 0, 50);
 
    /* Turn on channel 5 fully */
-   led_set_brightness(led, 5, 255);
+   led_set_brightness(led, 5, 100);
 
    /* Turn off channel 10 */
    led_set_brightness(led, 10, 0);
@@ -209,9 +209,15 @@ Multi-Channel Updates
 
 .. code-block:: c
 
-   /* Set RGB LED to purple */
+   #include <zephyr/drivers/led/is31fl3235a.h>
+
+   /* Set RGB LED to purple using extended API (0-255 for precise colors) */
    uint8_t rgb[3] = {255, 0, 255};
-   led_write_channels(led, 0, 3, rgb);
+   is31fl3235a_write_channels(led, 0, 3, rgb);
+
+   /* Or use standard API with 0-100 percentage */
+   uint8_t rgb_pct[3] = {100, 0, 100};
+   led_write_channels(led, 0, 3, rgb_pct);
 
 Current Scaling
 ===============

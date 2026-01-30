@@ -40,10 +40,10 @@ void main(void)
 
 	LOG_INF("LED device %s ready", led_dev->name);
 
-	/* Test 1: Basic brightness control */
+	/* Test 1: Basic brightness control using standard LED API (0-100 range) */
 	LOG_INF("Test 1: Setting individual channel brightness");
 	for (int i = 0; i < NUM_TEST_CHANNELS; i++) {
-		ret = led_set_brightness(led_dev, i, 128);  /* 50% brightness */
+		ret = led_set_brightness(led_dev, i, 50);  /* 50% brightness */
 		if (ret < 0) {
 			LOG_ERR("Failed to set channel %d brightness: %d", i, ret);
 		}
@@ -57,52 +57,52 @@ void main(void)
 
 	k_msleep(1000);
 
-	/* Test 2: Multi-channel synchronized update */
+	/* Test 2: Multi-channel synchronized update using extended API (0-255 range) */
 	LOG_INF("Test 2: Synchronized multi-channel update (RGB)");
 	uint8_t rgb_values[3];
 
-	/* Red */
+	/* Red - using extended API for full 8-bit color control */
 	rgb_values[0] = 255;
 	rgb_values[1] = 0;
 	rgb_values[2] = 0;
-	led_write_channels(led_dev, 0, 3, rgb_values);
+	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* Green */
 	rgb_values[0] = 0;
 	rgb_values[1] = 255;
 	rgb_values[2] = 0;
-	led_write_channels(led_dev, 0, 3, rgb_values);
+	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* Blue */
 	rgb_values[0] = 0;
 	rgb_values[1] = 0;
 	rgb_values[2] = 255;
-	led_write_channels(led_dev, 0, 3, rgb_values);
+	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* White */
 	rgb_values[0] = 255;
 	rgb_values[1] = 255;
 	rgb_values[2] = 255;
-	led_write_channels(led_dev, 0, 3, rgb_values);
+	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
 	k_msleep(500);
 
 	/* Off */
 	rgb_values[0] = 0;
 	rgb_values[1] = 0;
 	rgb_values[2] = 0;
-	led_write_channels(led_dev, 0, 3, rgb_values);
+	is31fl3235a_write_channels(led_dev, 0, 3, rgb_values);
 
 	k_msleep(1000);
 
-	/* Test 3: Current scaling */
+	/* Test 3: Current scaling - using extended API for full brightness */
 	LOG_INF("Test 3: Testing current scaling");
 
-	/* Set all channels to max brightness */
+	/* Set all channels to max brightness using extended API (0-255) */
 	for (int i = 0; i < NUM_TEST_CHANNELS; i++) {
-		led_set_brightness(led_dev, i, 255);
+		is31fl3235a_set_brightness(led_dev, i, 255);
 	}
 
 	/* Test different scaling factors */
@@ -129,24 +129,24 @@ void main(void)
 	/* Reset to 1x scaling */
 	for (int i = 0; i < NUM_TEST_CHANNELS; i++) {
 		is31fl3235a_set_current_scale(led_dev, i, IS31FL3235A_SCALE_1X);
-		led_set_brightness(led_dev, i, 0);
+		is31fl3235a_set_brightness(led_dev, i, 0);
 	}
 
 	k_msleep(1000);
 
-	/* Test 4: Breathing effect */
+	/* Test 4: Breathing effect - using extended API for smooth 8-bit animation */
 	LOG_INF("Test 4: Breathing effect on channel 0");
 
 	for (int cycle = 0; cycle < 3; cycle++) {
-		/* Fade in */
+		/* Fade in using extended API for smooth 8-bit transitions */
 		for (int brightness = 0; brightness <= 255; brightness += 5) {
-			led_set_brightness(led_dev, 0, brightness);
+			is31fl3235a_set_brightness(led_dev, 0, brightness);
 			k_msleep(10);
 		}
 
 		/* Fade out */
 		for (int brightness = 255; brightness >= 0; brightness -= 5) {
-			led_set_brightness(led_dev, 0, brightness);
+			is31fl3235a_set_brightness(led_dev, 0, brightness);
 			k_msleep(10);
 		}
 	}
@@ -156,7 +156,7 @@ void main(void)
 	/* Test 5: Channel enable/disable */
 	LOG_INF("Test 5: Testing channel enable/disable");
 
-	led_set_brightness(led_dev, 0, 255);
+	is31fl3235a_set_brightness(led_dev, 0, 255);
 
 	LOG_INF("Disabling channel 0 (LED should turn off)");
 	ret = is31fl3235a_channel_enable(led_dev, 0, false);
@@ -172,14 +172,14 @@ void main(void)
 	}
 	k_msleep(1000);
 
-	led_set_brightness(led_dev, 0, 0);
+	is31fl3235a_set_brightness(led_dev, 0, 0);
 
 	/* Test 6: Software shutdown */
 	LOG_INF("Test 6: Testing software shutdown");
 
-	/* Turn on all test channels */
+	/* Turn on all test channels using extended API (0-255) */
 	for (int i = 0; i < NUM_TEST_CHANNELS; i++) {
-		led_set_brightness(led_dev, i, 255);
+		is31fl3235a_set_brightness(led_dev, i, 255);
 	}
 
 	k_msleep(1000);
@@ -198,9 +198,9 @@ void main(void)
 	}
 	k_msleep(1000);
 
-	/* Turn off all LEDs */
+	/* Turn off all LEDs using extended API */
 	for (int i = 0; i < NUM_TEST_CHANNELS; i++) {
-		led_set_brightness(led_dev, i, 0);
+		is31fl3235a_set_brightness(led_dev, i, 0);
 	}
 
 	LOG_INF("Sample complete");

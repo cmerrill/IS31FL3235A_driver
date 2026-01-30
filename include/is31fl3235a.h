@@ -212,9 +212,9 @@ int is31fl3235a_update(const struct device *dev);
 /**
  * @brief Set brightness for a single LED channel without triggering update
  *
- * This is the extended API version of led_set_brightness() that writes
- * the PWM value to the staging register without triggering an update.
- * Call is31fl3235a_update() to apply the changes.
+ * This is the extended API version that writes the PWM value to the staging
+ * register without triggering an update. Call is31fl3235a_update() to apply
+ * the changes.
  *
  * Use this for batching multiple brightness changes and applying them
  * simultaneously with a single update, avoiding intermediate visible states.
@@ -234,9 +234,9 @@ int is31fl3235a_set_brightness_no_update(const struct device *dev,
 /**
  * @brief Write brightness values to multiple channels without triggering update
  *
- * This is the extended API version of led_write_channels() that writes
- * PWM values to the staging registers without triggering an update.
- * Call is31fl3235a_update() to apply the changes.
+ * This is the extended API version that writes PWM values to the staging
+ * registers without triggering an update. Call is31fl3235a_update() to apply
+ * the changes.
  *
  * Use this for batching changes across multiple non-consecutive channel
  * groups and applying them all simultaneously with a single update.
@@ -254,6 +254,52 @@ int is31fl3235a_write_channels_no_update(const struct device *dev,
 					  uint32_t start_channel,
 					  uint32_t num_channels,
 					  const uint8_t *buf);
+
+/**
+ * @brief Set brightness for a single LED channel using raw 0-255 value
+ *
+ * This function provides direct hardware control with 0-255 PWM values,
+ * equivalent to the standard led_set_brightness() but with full 8-bit
+ * resolution instead of 0-100 percentage.
+ *
+ * Note: The standard Zephyr LED API (led_set_brightness) uses 0-100 percentage.
+ * Use this function when you need full 8-bit PWM resolution.
+ *
+ * @param dev Pointer to the device structure
+ * @param led Channel number (0-27)
+ * @param value Brightness value (0-255)
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Invalid channel number
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_set_brightness(const struct device *dev,
+				uint32_t led,
+				uint8_t value);
+
+/**
+ * @brief Write brightness values to multiple channels using raw 0-255 values
+ *
+ * This function provides direct hardware control with 0-255 PWM values,
+ * equivalent to the standard led_write_channels() but with full 8-bit
+ * resolution instead of 0-100 percentage.
+ *
+ * Note: The standard Zephyr LED API (led_write_channels) uses 0-100 percentage.
+ * Use this function when you need full 8-bit PWM resolution.
+ *
+ * @param dev Pointer to the device structure
+ * @param start_channel First channel number (0-27)
+ * @param num_channels Number of consecutive channels to write
+ * @param buf Array of brightness values (0-255)
+ *
+ * @retval 0 On success
+ * @retval -EINVAL Invalid channel range
+ * @retval -EIO I2C communication error
+ */
+int is31fl3235a_write_channels(const struct device *dev,
+				uint32_t start_channel,
+				uint32_t num_channels,
+				const uint8_t *buf);
 
 #ifdef __cplusplus
 }
