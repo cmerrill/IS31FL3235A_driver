@@ -53,14 +53,14 @@ int led_set_brightness(const struct device *dev, uint32_t led, uint8_t value);
 **Parameters:**
 - `dev`: Pointer to LED device structure
 - `led`: LED channel number (0-27)
-- `value`: Brightness value (0-255)
+- `value`: Brightness value (0-100 percentage)
   - 0 = off
-  - 255 = maximum brightness
+  - 100 = maximum brightness
   - Linear scale between
 
 **Returns:**
 - `0`: Success
-- `-EINVAL`: Invalid channel number
+- `-EINVAL`: Invalid channel number or brightness > 100
 - `-EIO`: I2C communication error
 - `-ENODEV`: Device not ready
 
@@ -68,11 +68,13 @@ int led_set_brightness(const struct device *dev, uint32_t led, uint8_t value);
 - Automatically triggers update (writes to update register)
 - Thread-safe (uses internal mutex)
 - Changes take effect immediately
+- Uses 0-100 percentage range per Zephyr LED API standard
+- For full 8-bit (0-255) resolution, use `is31fl3235a_set_brightness()`
 
 **Example:**
 ```c
 /* Set channel 0 to 50% brightness */
-int ret = led_set_brightness(led_dev, 0, 128);
+int ret = led_set_brightness(led_dev, 0, 50);
 if (ret < 0) {
     printk("Failed to set brightness: %d\n", ret);
 }
@@ -81,7 +83,7 @@ if (ret < 0) {
 led_set_brightness(led_dev, 5, 0);
 
 /* Maximum brightness on channel 10 */
-led_set_brightness(led_dev, 10, 255);
+led_set_brightness(led_dev, 10, 100);
 ```
 
 ### led_write_channels()
@@ -99,30 +101,36 @@ int led_write_channels(const struct device *dev,
 - `dev`: Pointer to LED device structure
 - `start_channel`: First channel number (0-27)
 - `num_channels`: Number of consecutive channels to write
-- `buf`: Array of brightness values (0-255)
+- `buf`: Array of brightness values (0-100 percentage)
 
 **Returns:**
 - `0`: Success
-- `-EINVAL`: Invalid channel range
+- `-EINVAL`: Invalid channel range or any brightness value > 100
 - `-EIO`: I2C communication error
 
 **Notes:**
 - More efficient than multiple `led_set_brightness()` calls
 - All channels update simultaneously (single update trigger)
 - Thread-safe
+- Uses 0-100 percentage range per Zephyr LED API standard
+- For full 8-bit (0-255) resolution, use `is31fl3235a_write_channels()`
 
 **Example:**
 ```c
-/* Set RGB LED (channels 0-2) to purple (R=255, G=0, B=255) */
-uint8_t rgb_values[] = {255, 0, 255};
+/* Set RGB LED (channels 0-2) to purple using percentage values */
+uint8_t rgb_values[] = {100, 0, 100};  /* R=100%, G=0%, B=100% */
 led_write_channels(led_dev, 0, 3, rgb_values);
 
 /* Set 10 channels to gradient */
 uint8_t gradient[10];
 for (int i = 0; i < 10; i++) {
-    gradient[i] = i * 25;  /* 0, 25, 50, ..., 225 */
+    gradient[i] = i * 10;  /* 0, 10, 20, ..., 90 percent */
 }
 led_write_channels(led_dev, 0, 10, gradient);
+
+/* For precise 8-bit color control, use the extended API */
+uint8_t precise_rgb[] = {255, 128, 64};
+is31fl3235a_write_channels(led_dev, 0, 3, precise_rgb);
 ```
 
 ### led_on()
@@ -133,7 +141,7 @@ Turn LED on to maximum brightness (optional, may not be implemented).
 int led_on(const struct device *dev, uint32_t led);
 ```
 
-**Equivalent to:** `led_set_brightness(dev, led, 255)`
+**Equivalent to:** `led_set_brightness(dev, led, 100)`
 
 ### led_off()
 
@@ -456,6 +464,87 @@ int is31fl3235a_update(const struct device *dev);
 - Use when you need fine control over update timing
 - Applies all pending PWM and control register changes
 
+### Extended Brightness Control (8-bit Resolution)
+
+These functions provide full 8-bit (0-255) brightness control, equivalent to the standard Zephyr LED API functions but with hardware-level PWM resolution instead of 0-100 percentage. Use these when you need precise color control or smooth animations.
+
+#### is31fl3235a_set_brightness()
+
+Set brightness for a single LED channel using raw 0-255 value.
+
+```c
+int is31fl3235a_set_brightness(const struct device *dev,
+                                uint32_t led,
+                                uint8_t value);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `led`: LED channel number (0-27)
+- `value`: Brightness value (0-255)
+
+**Returns:**
+- `0`: Success
+- `-EINVAL`: Invalid channel number
+- `-EIO`: I2C communication error
+
+**Notes:**
+- Provides full 8-bit PWM resolution (256 levels)
+- Automatically triggers update
+- Thread-safe
+- Use this instead of `led_set_brightness()` when you need precise control
+
+**Example:**
+```c
+/* Set channel 0 to exact PWM value */
+is31fl3235a_set_brightness(led_dev, 0, 128);  /* Exactly 50% PWM */
+
+/* Smooth animation with full resolution */
+for (int brightness = 0; brightness <= 255; brightness++) {
+    is31fl3235a_set_brightness(led_dev, 0, brightness);
+    k_msleep(10);
+}
+```
+
+#### is31fl3235a_write_channels()
+
+Write brightness values to multiple consecutive channels using raw 0-255 values.
+
+```c
+int is31fl3235a_write_channels(const struct device *dev,
+                                uint32_t start_channel,
+                                uint32_t num_channels,
+                                const uint8_t *buf);
+```
+
+**Parameters:**
+- `dev`: Pointer to LED device structure
+- `start_channel`: First channel number (0-27)
+- `num_channels`: Number of consecutive channels to write
+- `buf`: Array of brightness values (0-255)
+
+**Returns:**
+- `0`: Success
+- `-EINVAL`: Invalid channel range
+- `-EIO`: I2C communication error
+
+**Notes:**
+- Provides full 8-bit PWM resolution (256 levels)
+- All channels update simultaneously (single update trigger)
+- Thread-safe
+- Use this instead of `led_write_channels()` for precise RGB color control
+
+**Example:**
+```c
+/* Set precise RGB color (0-255 per channel) */
+uint8_t rgb[] = {255, 128, 64};  /* Exact PWM values */
+is31fl3235a_write_channels(led_dev, 0, 3, rgb);
+
+/* Precise color mixing */
+uint8_t sunset[] = {255, 140, 50};  /* Orange sunset color */
+is31fl3235a_write_channels(led_dev, 0, 3, sunset);
+```
+
 ### Extended Brightness Control (No Auto-Update)
 
 These functions are extended API versions of the standard brightness functions that write to staging registers without triggering an update. Use them to batch multiple changes and apply them all simultaneously with a single `is31fl3235a_update()` call.
@@ -556,8 +645,8 @@ void simple_led_control(void)
         return;
     }
 
-    /* Turn on LED at 50% */
-    led_set_brightness(led, 0, 128);
+    /* Turn on LED at 50% using standard API (0-100 range) */
+    led_set_brightness(led, 0, 50);
 
     /* Wait 1 second */
     k_sleep(K_SECONDS(1));
@@ -572,6 +661,7 @@ void simple_led_control(void)
 ```c
 #include <zephyr/device.h>
 #include <zephyr/drivers/led.h>
+#include <zephyr/drivers/led/is31fl3235a.h>
 
 struct rgb_color {
     uint8_t r;
@@ -582,8 +672,9 @@ struct rgb_color {
 void set_rgb_led(const struct device *led, uint8_t base_channel,
                   struct rgb_color *color)
 {
+    /* Use extended API for precise 8-bit color control (0-255) */
     uint8_t rgb[3] = {color->r, color->g, color->b};
-    led_write_channels(led, base_channel, 3, rgb);
+    is31fl3235a_write_channels(led, base_channel, 3, rgb);
 }
 
 void rgb_demo(void)
@@ -630,8 +721,9 @@ void balance_rgb_currents(const struct device *led)
     is31fl3235a_set_current_scale(led, 2, IS31FL3235A_SCALE_1X);
 
     /* Now all at max brightness (255) appear balanced */
+    /* Use extended API for precise 8-bit control */
     uint8_t white[3] = {255, 255, 255};
-    led_write_channels(led, 0, 3, white);
+    is31fl3235a_write_channels(led, 0, 3, white);
 }
 ```
 
@@ -640,19 +732,20 @@ void balance_rgb_currents(const struct device *led)
 ```c
 #include <zephyr/device.h>
 #include <zephyr/drivers/led.h>
+#include <zephyr/drivers/led/is31fl3235a.h>
 
 void breathing_effect(const struct device *led, uint8_t channel)
 {
     while (1) {
-        /* Fade in */
+        /* Fade in using extended API for smooth 8-bit transitions */
         for (int brightness = 0; brightness <= 255; brightness += 5) {
-            led_set_brightness(led, channel, brightness);
+            is31fl3235a_set_brightness(led, channel, brightness);
             k_sleep(K_MSEC(20));
         }
 
         /* Fade out */
         for (int brightness = 255; brightness >= 0; brightness -= 5) {
-            led_set_brightness(led, channel, brightness);
+            is31fl3235a_set_brightness(led, channel, brightness);
             k_sleep(K_MSEC(20));
         }
     }
@@ -664,6 +757,7 @@ void breathing_effect(const struct device *led, uint8_t channel)
 ```c
 #include <zephyr/device.h>
 #include <zephyr/drivers/led.h>
+#include <zephyr/drivers/led/is31fl3235a.h>
 
 #define NUM_LEDS 28
 
@@ -672,7 +766,7 @@ void knight_rider_effect(const struct device *led)
     uint8_t brightness[NUM_LEDS];
 
     while (1) {
-        /* Sweep right */
+        /* Sweep right - using extended API for precise brightness control */
         for (int pos = 0; pos < NUM_LEDS; pos++) {
             memset(brightness, 0, sizeof(brightness));
 
@@ -683,7 +777,7 @@ void knight_rider_effect(const struct device *led)
             if (pos > 0) brightness[pos - 1] = 128;
             if (pos > 1) brightness[pos - 2] = 64;
 
-            led_write_channels(led, 0, NUM_LEDS, brightness);
+            is31fl3235a_write_channels(led, 0, NUM_LEDS, brightness);
             k_sleep(K_MSEC(50));
         }
 
@@ -695,7 +789,7 @@ void knight_rider_effect(const struct device *led)
             if (pos < NUM_LEDS - 1) brightness[pos + 1] = 128;
             if (pos < NUM_LEDS - 2) brightness[pos + 2] = 64;
 
-            led_write_channels(led, 0, NUM_LEDS, brightness);
+            is31fl3235a_write_channels(led, 0, NUM_LEDS, brightness);
             k_sleep(K_MSEC(50));
         }
     }
@@ -711,8 +805,8 @@ void knight_rider_effect(const struct device *led)
 
 void power_saving_demo(const struct device *led)
 {
-    /* Normal operation */
-    led_set_brightness(led, 0, 255);
+    /* Normal operation - use extended API for full brightness */
+    is31fl3235a_set_brightness(led, 0, 255);
     k_sleep(K_SECONDS(5));
 
     /* Enter low power mode */
@@ -744,7 +838,7 @@ All API functions are thread-safe and can be called from multiple threads or ISR
 void thread_a(void *led_dev, void *unused1, void *unused2)
 {
     while (1) {
-        led_set_brightness(led_dev, 0, 255);
+        led_set_brightness(led_dev, 0, 100);  /* 100% */
         k_sleep(K_MSEC(500));
         led_set_brightness(led_dev, 0, 0);
         k_sleep(K_MSEC(500));
@@ -754,7 +848,7 @@ void thread_a(void *led_dev, void *unused1, void *unused2)
 void thread_b(void *led_dev, void *unused1, void *unused2)
 {
     while (1) {
-        led_set_brightness(led_dev, 1, 255);
+        led_set_brightness(led_dev, 1, 100);  /* 100% */
         k_sleep(K_MSEC(250));
         led_set_brightness(led_dev, 1, 0);
         k_sleep(K_MSEC(250));
@@ -767,11 +861,11 @@ void thread_b(void *led_dev, void *unused1, void *unused2)
 All functions return negative errno codes on failure:
 
 ```c
-int ret = led_set_brightness(led_dev, 0, 128);
+int ret = led_set_brightness(led_dev, 0, 50);  /* 50% brightness */
 if (ret < 0) {
     switch (ret) {
     case -EINVAL:
-        printk("Invalid parameter\n");
+        printk("Invalid parameter (channel out of range or brightness > 100)\n");
         break;
     case -EIO:
         printk("I2C communication error\n");
@@ -794,13 +888,17 @@ if (ret < 0) {
 
 ```c
 /* Less efficient: 3 I2C transactions + 3 updates */
-led_set_brightness(led_dev, 0, 255);
-led_set_brightness(led_dev, 1, 128);
-led_set_brightness(led_dev, 2, 64);
+led_set_brightness(led_dev, 0, 100);
+led_set_brightness(led_dev, 1, 50);
+led_set_brightness(led_dev, 2, 25);
 
-/* More efficient: 1 I2C transaction + 1 update */
-uint8_t values[] = {255, 128, 64};
+/* More efficient: 1 I2C transaction + 1 update (using 0-100 percentage) */
+uint8_t values[] = {100, 50, 25};
 led_write_channels(led_dev, 0, 3, values);
+
+/* For precise 8-bit control, use extended API (0-255) */
+uint8_t precise[] = {255, 128, 64};
+is31fl3235a_write_channels(led_dev, 0, 3, precise);
 ```
 
 ### I2C Speed
@@ -823,11 +921,15 @@ Updating faster than PWM period provides no visual benefit.
 
 ## Summary
 
-### Standard LED API (always use when possible)
-- `led_set_brightness()` - Set single channel
-- `led_write_channels()` - Set multiple channels
+### Standard LED API (0-100 percentage range)
+- `led_set_brightness()` - Set single channel (0-100)
+- `led_write_channels()` - Set multiple channels (0-100)
 
 ### Extended API (IS31FL3235A-specific)
+
+**8-bit Brightness Control (0-255):**
+- `is31fl3235a_set_brightness()` - Set single channel with full 8-bit resolution
+- `is31fl3235a_write_channels()` - Set multiple channels with full 8-bit resolution
 
 **Current Scaling:**
 - `is31fl3235a_set_current_scale()` - Adjust current scaling per channel
@@ -844,13 +946,13 @@ Updating faster than PWM period provides no visual benefit.
 
 **Manual Update Control:**
 - `is31fl3235a_update()` - Manual update trigger
-- `is31fl3235a_set_brightness_no_update()` - Set brightness without auto-update
-- `is31fl3235a_write_channels_no_update()` - Write channels without auto-update
+- `is31fl3235a_set_brightness_no_update()` - Set brightness without auto-update (0-255)
+- `is31fl3235a_write_channels_no_update()` - Write channels without auto-update (0-255)
 
 ### Best Practices
-1. Use standard LED API when possible for portability
-2. Use extended API for IS31FL3235A-specific features
-3. Prefer `led_write_channels()` for multi-channel updates
+1. Use standard LED API (0-100) for portability and simple use cases
+2. Use extended API (0-255) for precise color control and smooth animations
+3. Prefer batch operations (`led_write_channels()` or `is31fl3235a_write_channels()`) for multi-channel updates
 4. Use `*_no_update()` functions for frame-perfect animations or batching non-consecutive updates
 5. Use `is31fl3235a_global_enable()` for instant display blanking during transitions
 6. Check `device_is_ready()` before use

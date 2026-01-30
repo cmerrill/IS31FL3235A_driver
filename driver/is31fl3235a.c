@@ -131,7 +131,7 @@ static inline int is31fl3235a_trigger_update(const struct device *dev)
  *
  * @param dev Pointer to device structure
  * @param led Channel number (0-27)
- * @param value Brightness value (0-255)
+ * @param value Brightness value (0-100, percentage)
  * @return 0 on success, negative errno on error
  */
 static int is31fl3235a_led_set_brightness(const struct device *dev,
@@ -139,6 +139,7 @@ static int is31fl3235a_led_set_brightness(const struct device *dev,
 					   uint8_t value)
 {
 	struct is31fl3235a_data *data = dev->data;
+	uint8_t hw_value;
 	int ret;
 
 	if (led >= IS31FL3235A_NUM_CHANNELS) {
@@ -147,16 +148,24 @@ static int is31fl3235a_led_set_brightness(const struct device *dev,
 		return -EINVAL;
 	}
 
+	if (value > 100) {
+		LOG_ERR("Invalid brightness %u (max 100)", value);
+		return -EINVAL;
+	}
+
+	/* Convert 0-100 percentage to 0-255 hardware value */
+	hw_value = ((uint16_t)value * 255) / 100;
+
 	k_mutex_lock(&data->lock, K_FOREVER);
 
 	/* Write PWM value to register */
-	ret = is31fl3235a_write_reg(dev, IS31FL3235A_PWM_REG(led), value);
+	ret = is31fl3235a_write_reg(dev, IS31FL3235A_PWM_REG(led), hw_value);
 	if (ret < 0) {
 		goto unlock;
 	}
 
 	/* Update cache */
-	data->pwm_cache[led] = value;
+	data->pwm_cache[led] = hw_value;
 
 	/* Trigger update to apply change */
 	ret = is31fl3235a_trigger_update(dev);
@@ -164,7 +173,7 @@ static int is31fl3235a_led_set_brightness(const struct device *dev,
 		goto unlock;
 	}
 
-	LOG_DBG("Set channel %u brightness to %u", led, value);
+	LOG_DBG("Set channel %u brightness to %u%% (hw: %u)", led, value, hw_value);
 
 unlock:
 	k_mutex_unlock(&data->lock);
@@ -177,7 +186,7 @@ unlock:
  * @param dev Pointer to device structure
  * @param start_channel First channel number
  * @param num_channels Number of consecutive channels
- * @param buf Buffer containing brightness values
+ * @param buf Buffer containing brightness values (0-100, percentage)
  * @return 0 on success, negative errno on error
  */
 static int is31fl3235a_led_write_channels(const struct device *dev,
@@ -186,6 +195,7 @@ static int is31fl3235a_led_write_channels(const struct device *dev,
 					   const uint8_t *buf)
 {
 	struct is31fl3235a_data *data = dev->data;
+	uint8_t hw_buf[IS31FL3235A_NUM_CHANNELS];
 	int ret;
 
 	if (start_channel >= IS31FL3235A_NUM_CHANNELS) {
@@ -200,17 +210,27 @@ static int is31fl3235a_led_write_channels(const struct device *dev,
 		return -EINVAL;
 	}
 
+	/* Validate and convert 0-100 percentage to 0-255 hardware values */
+	for (uint32_t i = 0; i < num_channels; i++) {
+		if (buf[i] > 100) {
+			LOG_ERR("Invalid brightness %u at index %u (max 100)",
+				buf[i], i);
+			return -EINVAL;
+		}
+		hw_buf[i] = ((uint16_t)buf[i] * 255) / 100;
+	}
+
 	k_mutex_lock(&data->lock, K_FOREVER);
 
 	/* Write PWM values to consecutive registers */
 	ret = is31fl3235a_write_buffer(dev, IS31FL3235A_PWM_REG(start_channel),
-					buf, num_channels);
+					hw_buf, num_channels);
 	if (ret < 0) {
 		goto unlock;
 	}
 
 	/* Update cache */
-	memcpy(&data->pwm_cache[start_channel], buf, num_channels);
+	memcpy(&data->pwm_cache[start_channel], hw_buf, num_channels);
 
 	/* Trigger update to apply all changes simultaneously */
 	ret = is31fl3235a_trigger_update(dev);
@@ -235,7 +255,7 @@ unlock:
  */
 static int is31fl3235a_led_on(const struct device *dev, uint32_t led)
 {
-	return is31fl3235a_led_set_brightness(dev, led, IS31FL3235A_PWM_MAX);
+	return is31fl3235a_led_set_brightness(dev, led, 100);
 }
 
 /**
@@ -678,6 +698,112 @@ int is31fl3235a_write_channels_no_update(const struct device *dev,
 	memcpy(&data->pwm_cache[start_channel], buf, num_channels);
 
 	LOG_DBG("Set channels %u-%u (%u channels, no update)",
+		start_channel, start_channel + num_channels - 1, num_channels);
+
+unlock:
+	k_mutex_unlock(&data->lock);
+	return ret;
+}
+
+/**
+ * @brief Set brightness for a single LED channel using raw 0-255 value (extended API)
+ *
+ * This function provides direct hardware control with 0-255 PWM values,
+ * equivalent to the standard led_set_brightness() but with full 8-bit resolution.
+ *
+ * @param dev Pointer to device structure
+ * @param led Channel number (0-27)
+ * @param value Brightness value (0-255)
+ * @return 0 on success, negative errno on error
+ */
+int is31fl3235a_set_brightness(const struct device *dev,
+				uint32_t led,
+				uint8_t value)
+{
+	struct is31fl3235a_data *data = dev->data;
+	int ret;
+
+	if (led >= IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Invalid channel %u (max %u)", led,
+			IS31FL3235A_NUM_CHANNELS - 1);
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	/* Write PWM value to register */
+	ret = is31fl3235a_write_reg(dev, IS31FL3235A_PWM_REG(led), value);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	/* Update cache */
+	data->pwm_cache[led] = value;
+
+	/* Trigger update to apply change */
+	ret = is31fl3235a_trigger_update(dev);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	LOG_DBG("Set channel %u brightness to %u (raw)", led, value);
+
+unlock:
+	k_mutex_unlock(&data->lock);
+	return ret;
+}
+
+/**
+ * @brief Write brightness values to multiple channels using raw 0-255 values (extended API)
+ *
+ * This function provides direct hardware control with 0-255 PWM values,
+ * equivalent to the standard led_write_channels() but with full 8-bit resolution.
+ *
+ * @param dev Pointer to device structure
+ * @param start_channel First channel number (0-27)
+ * @param num_channels Number of consecutive channels to write
+ * @param buf Array of brightness values (0-255)
+ * @return 0 on success, negative errno on error
+ */
+int is31fl3235a_write_channels(const struct device *dev,
+				uint32_t start_channel,
+				uint32_t num_channels,
+				const uint8_t *buf)
+{
+	struct is31fl3235a_data *data = dev->data;
+	int ret;
+
+	if (start_channel >= IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Invalid start channel %u", start_channel);
+		return -EINVAL;
+	}
+
+	if (start_channel + num_channels > IS31FL3235A_NUM_CHANNELS) {
+		LOG_ERR("Channel range %u-%u exceeds maximum %u",
+			start_channel, start_channel + num_channels - 1,
+			IS31FL3235A_NUM_CHANNELS - 1);
+		return -EINVAL;
+	}
+
+	k_mutex_lock(&data->lock, K_FOREVER);
+
+	/* Write PWM values to consecutive registers */
+	ret = is31fl3235a_write_buffer(dev, IS31FL3235A_PWM_REG(start_channel),
+					buf, num_channels);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	/* Update cache */
+	memcpy(&data->pwm_cache[start_channel], buf, num_channels);
+
+	/* Trigger update to apply all changes simultaneously */
+	ret = is31fl3235a_trigger_update(dev);
+	if (ret < 0) {
+		goto unlock;
+	}
+
+	LOG_DBG("Set channels %u-%u (%u channels, raw)",
 		start_channel, start_channel + num_channels - 1, num_channels);
 
 unlock:

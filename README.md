@@ -32,8 +32,8 @@ Zephyr RTOS driver for the **IS31FL3235A** 28-channel LED driver IC from Lumissi
 
 ### Standard Zephyr LED API
 
-- `led_set_brightness()` - Set single channel brightness (0-255)
-- `led_write_channels()` - Set multiple channels simultaneously
+- `led_set_brightness()` - Set single channel brightness (0-100 percentage)
+- `led_write_channels()` - Set multiple channels simultaneously (0-100 percentage)
 
 ### Extended API
 
@@ -41,6 +41,8 @@ Additional functions for IS31FL3235A-specific features:
 
 | Function | Description |
 |----------|-------------|
+| `is31fl3235a_set_brightness()` | Set brightness with 8-bit resolution (0-255) |
+| `is31fl3235a_write_channels()` | Write multiple channels with 8-bit resolution (0-255) |
 | `is31fl3235a_set_current_scale()` | Per-channel current scaling (1x, 1/2x, 1/3x, 1/4x) |
 | `is31fl3235a_channel_enable()` | Enable/disable individual channel |
 | `is31fl3235a_channels_enable()` | Enable/disable multiple channels |
@@ -49,8 +51,8 @@ Additional functions for IS31FL3235A-specific features:
 | `is31fl3235a_sw_shutdown()` | Software shutdown for power saving |
 | `is31fl3235a_hw_shutdown()` | Hardware shutdown via SDB pin |
 | `is31fl3235a_update()` | Manual update trigger |
-| `is31fl3235a_set_brightness_no_update()` | Set brightness (no auto-update) |
-| `is31fl3235a_write_channels_no_update()` | Write multiple channels (no auto-update) |
+| `is31fl3235a_set_brightness_no_update()` | Set brightness (no auto-update, 0-255) |
+| `is31fl3235a_write_channels_no_update()` | Write multiple channels (no auto-update, 0-255) |
 
 See [API_SPECIFICATION.md](API_SPECIFICATION.md) for detailed documentation.
 
@@ -87,12 +89,12 @@ void led_demo(void)
         return;
     }
 
-    /* Set single channel brightness */
-    led_set_brightness(led, 0, 128);
+    /* Set single channel brightness using standard API (0-100 percentage) */
+    led_set_brightness(led, 0, 50);  /* 50% brightness */
 
-    /* Set RGB LED to purple */
+    /* Set RGB LED to purple using extended API (0-255 for precise colors) */
     uint8_t rgb[] = {255, 0, 255};
-    led_write_channels(led, 0, 3, rgb);
+    is31fl3235a_write_channels(led, 0, 3, rgb);
 
     /* Adjust current scaling for white balance */
     is31fl3235a_set_current_scale(led, 0, IS31FL3235A_SCALE_1_4X);
