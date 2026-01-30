@@ -154,7 +154,7 @@ static int is31fl3235a_led_set_brightness(const struct device *dev,
 	}
 
 	/* Convert 0-100 percentage to 0-255 hardware value */
-	hw_value = (value * 255) / 100;
+	hw_value = ((uint16_t)value * 255) / 100;
 
 	k_mutex_lock(&data->lock, K_FOREVER);
 
@@ -217,7 +217,7 @@ static int is31fl3235a_led_write_channels(const struct device *dev,
 				buf[i], i);
 			return -EINVAL;
 		}
-		hw_buf[i] = (buf[i] * 255) / 100;
+		hw_buf[i] = ((uint16_t)buf[i] * 255) / 100;
 	}
 
 	k_mutex_lock(&data->lock, K_FOREVER);
